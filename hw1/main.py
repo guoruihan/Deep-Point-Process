@@ -370,28 +370,15 @@ class MHP:
                     t0 = self.time_seq[d0]
                     tmp_intensity += (
                             mu[d] * (t1 - t0)
-                            + np.sum(
-                        [
-                            1.0
-                            / omega
-                            * alpha[d][self.event_seq[j]]
-                            * (
-                                    np.exp(-omega * (t0 - self.time_seq[j]))
-                                    - np.exp(-omega * (t1 - self.time_seq[j]))
-                            )
-                            for j in range(d0)
-                        ]
-                    )
-                            + np.sum(
-                        [
-                            1.0
-                            / omega
-                            * alpha[d][self.event_seq[j]]
+                            + np.sum([1.0 / omega * alpha[d][self.event_seq[j]]
+                            * ( np.exp(-omega * (t0 - self.time_seq[j])) - np.exp(-omega * (t1 - self.time_seq[j]))
+                            ) for j in range(d0) ] )
+
+                            +
+
+                            np.sum([1.0 / omega * alpha[d][self.event_seq[j]]
                             * (1 - np.exp(-omega * (t1 - self.time_seq[j])))
-                            for j in range(d0, i)
-                        ]
-                    )
-                    )
+                            for j in range(d0, i) ] ) )
 
             if all_to_one:
                 assert len(dims) == M
