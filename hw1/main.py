@@ -1,5 +1,6 @@
 import numpy as np
 import time as T
+import json
 import seaborn as sns
 
 from sklearn.metrics.pairwise import pairwise_distances
@@ -10,17 +11,18 @@ import matplotlib.pyplot as plt
 import random
 
 class MHP:
-    def __init__(self, alpha=None, mu=None, omega=0.5):
+    def __init__(self, alpha=None, mu=None, omega=1):
         '''params should be of form:
         alpha: numpy.array((u,u)), mu: numpy.array((,u)), omega: float'''
 
         if mu is None:
-            mu = [0.2, ]
+            mu = [0.2, 0.3 ]
         if alpha is None:
-            alpha = [[0.3], ]
+            alpha = [[0.3, 0.7], [0.1, 0.6]]
         self.data = []
         self.alpha, self.mu, self.omega = np.array(alpha), np.array(mu), omega
         self.dim = self.mu.shape[0]
+        self.maxtime = 0
         self.check_stability()
 
     def check_stability(self):
@@ -31,8 +33,84 @@ class MHP:
         if me >= 1.:
             print('(WARNING) Unstable.')
 
-    def generate_seq(self):
-        pass
+    def generate_seq(self, totnum):
+        mu = self.mu
+        alpha = self.alpha
+        omega = self.omega
+        T = totnum
+
+        print(mu,alpha,omega,T)
+
+        M = len(mu)
+
+        def get_intensities():
+            exps = np.array(
+                [
+                    np.sum(np.exp(-omega * (s - np.array(x)[np.array(x) <= s])))
+                    for x in events
+                ]
+            )
+            res = 1.0 * np.array(mu) + np.sum(np.array(alpha) * exps, axis=1)
+            return res
+
+        # initialize parameters
+        self.time_seq = []
+        self.event_seq = []
+        events = [[] for _ in range(M)]  # track down each events
+        intensities = [[] for _ in range(M)]  # track down intensities
+        Ns = [0] * M
+        s = 0
+        cnt = 0
+
+        # simulate M-variate Hawkes Process with Exponential Kernels
+        while s < 1000 and cnt < 1200:
+            if cnt == 0:
+                now_intensities = 1.0 * np.array(mu)  # initial state
+            else:
+                now_intensities = get_intensities()
+
+            lambda_mu = np.sum(now_intensities)
+            u = random.uniform(0, 1)
+            w = -np.log(u) / lambda_mu
+            s = s + w
+            if s > 1000:
+                break
+
+            D = random.uniform(0, 1)
+
+            cand_intensities = (
+                get_intensities()
+            )  # note that we have updated s, thus intensities are not the same
+
+            if D * lambda_mu <= np.sum(cand_intensities):
+                k = 0
+                while D * lambda_mu > np.sum(cand_intensities[: (k + 1)]):
+                    k += 1
+                Ns[k] += 1
+                events[k].append(s)  # update event
+                intensities[k].append(cand_intensities[k])  # update intensities
+                self.time_seq.append(s)
+                self.event_seq.append(k)
+                cnt += 1
+
+        self.maxtime = s
+
+        if s > T:
+            events[k].pop()
+            intensities[k].pop()
+            self.time_seq.pop()
+            self.event_seq.pop()
+
+
+        self.data = []
+
+        # print(self.time_seq)
+
+        for ntime, ncol in zip(self.time_seq, self.event_seq):
+            self.data.append([ntime, ncol])
+
+        #
+        # return time_seq, event_seq, events, intensities
 
     """
     accelerated version
@@ -225,10 +303,8 @@ class MHP:
         ax.plot((0, maxi), (0, maxi), linecolor)
         plt.show()
 
-    def draw_QQ1Dim(self, title="QQplot", type="expotional", num_points=1000):
-        Y = []
-        for i in range(len(self.data) - 1):
-            Y.append(self.data[i + 1][0] - self.data[i][0])
+    def draw_QQ1Dim(self, Y, title="QQplot", type="expotional", num_points=200):
+
         Y.sort()
         # draw real data points
         N = len(Y)
@@ -247,6 +323,94 @@ class MHP:
         plt.xlabel("quantiles of expected distribution")
         plt.ylabel("quantiles of real distribution")
         plt.show()
+
+    def draw_QQMultiDim(self,
+            title,
+            all_to_one=False,
+            toshowDim: list = None,
+    ):
+
+        alpha = self.alpha
+        mu = self.mu
+        omega = self.omega
+        M = len(mu)
+
+        # calculate integral
+        if all_to_one:
+            intensities = []
+        else:
+            intensities = [[] for _ in range(M)]
+
+        for i, t1 in enumerate(self.time_seq):
+            if not all_to_one:
+                dims = [self.event_seq[i]]
+            else:
+                dims = [i for i in range(M)]
+
+            tmp_intensity = 0.0
+            for d in dims:
+                if i == 0:
+                    # initial state, no other previous
+                    tmp_intensity += mu[d] * t1
+                    break
+                elif not d in self.event_seq[:i]:
+                    # never happend
+                    tmp_intensity += mu[d] * t1 + np.sum(
+                        [
+                            1.0
+                            / omega
+                            * alpha[d][self.event_seq[j]]
+                            * (1 - np.exp(-omega * (t1 - self.time_seq[j])))
+                            for j in range(i)
+                        ]
+                    )
+                else:
+                    # happened before
+                    d0 = np.where(np.array(self.event_seq[:i]) == d)[0][-1]
+                    t0 = self.time_seq[d0]
+                    tmp_intensity += (
+                            mu[d] * (t1 - t0)
+                            + np.sum(
+                        [
+                            1.0
+                            / omega
+                            * alpha[d][self.event_seq[j]]
+                            * (
+                                    np.exp(-omega * (t0 - self.time_seq[j]))
+                                    - np.exp(-omega * (t1 - self.time_seq[j]))
+                            )
+                            for j in range(d0)
+                        ]
+                    )
+                            + np.sum(
+                        [
+                            1.0
+                            / omega
+                            * alpha[d][self.event_seq[j]]
+                            * (1 - np.exp(-omega * (t1 - self.time_seq[j])))
+                            for j in range(d0, i)
+                        ]
+                    )
+                    )
+
+            if all_to_one:
+                assert len(dims) == M
+                intensities.append(tmp_intensity)
+                with open("tmp.csv", "w") as f:
+                    json.dump(intensities, f)
+            else:
+                assert len(dims) == 1
+                intensities[dims[0]].append(tmp_intensity)
+
+        if all_to_one:
+            self.draw_QQ1Dim(intensities, "{}-alldim QQ plot".format(title))
+
+        else:
+            if toshowDim is None:
+                toshowDim = range(min(len(mu), 2))
+
+            for d in toshowDim:
+                self.draw_QQ1Dim(intensities[d], "{}-dim-{} QQ plot".format(title, d))
 
         # if title is not None:
         #     ax.set_title(title)
@@ -285,8 +449,18 @@ class MHP:
 
 # P = MHP(mu=m, alpha=a, omega=w)
 P = MHP()
+P.mu =[random.random() for i in range(10)]
+P.alpha = []
+for i in range(10):
+    nl = []
+    for j in range(10):
+        if i == j:
+            nl.append(0.8 + 0.2 * random.random())
+        else:
+            nl.append(0.1 * random.random())
+    P.alpha.append(nl)
 P.generate_seq(1000)
 # P.plot_events()
 # plt.show()
 # P.plot_rates()
-P.qqplot()
+P.draw_QQMultiDim("10dim")
