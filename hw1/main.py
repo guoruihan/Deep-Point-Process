@@ -357,10 +357,7 @@ class MHP:
                     # never happend
                     tmp_intensity += mu[d] * t1 + np.sum(
                         [
-                            1.0
-                            / omega
-                            * alpha[d][self.event_seq[j]]
-                            * (1 - np.exp(-omega * (t1 - self.time_seq[j])))
+                            1.0 / omega * alpha[d][self.event_seq[j]] * (1 - np.exp(-omega * (t1 - self.time_seq[j])))
                             for j in range(i)
                         ]
                     )
@@ -371,14 +368,14 @@ class MHP:
                     tmp_intensity += (
                             mu[d] * (t1 - t0)
                             + np.sum([1.0 / omega * alpha[d][self.event_seq[j]]
-                            * ( np.exp(-omega * (t0 - self.time_seq[j])) - np.exp(-omega * (t1 - self.time_seq[j]))
-                            ) for j in range(d0) ] )
+                            * ( np.exp(-omega * (t0 - self.time_seq[j])) - np.exp(-omega * (t1 - self.time_seq[j])))
+                            for j in range(d0)])
 
                             +
 
                             np.sum([1.0 / omega * alpha[d][self.event_seq[j]]
                             * (1 - np.exp(-omega * (t1 - self.time_seq[j])))
-                            for j in range(d0, i) ] ) )
+                            for j in range(d0, i)]))
 
             if all_to_one:
                 assert len(dims) == M
@@ -398,14 +395,6 @@ class MHP:
 
             for d in toshowDim:
                 self.draw_QQ1Dim(intensities[d], "{}-dim-{} QQ plot".format(title, d))
-
-        # if title is not None:
-        #     ax.set_title(title)
-        # if filename is not None:
-        #     plt.savefig(filename, dpi=300, bbox_inches='tight')
-        #     plt.close()
-        # else:
-        #     return fig, ax
 # def spectral_radius(M):
 #     a,b=np.linalg.eig(M) #a为特征值集合，b为特征值向量
 #     return np.max(np.abs(a))
