@@ -14,11 +14,6 @@ class MHP:
     def __init__(self, alpha=None, mu=None, omega=1):
         '''params should be of form:
         alpha: numpy.array((u,u)), mu: numpy.array((,u)), omega: float'''
-
-        if mu is None:
-            mu = [0.2, 0.3 ]
-        if alpha is None:
-            alpha = [[0.3, 0.7], [0.1, 0.6]]
         self.data = []
         self.alpha, self.mu, self.omega = np.array(alpha), np.array(mu), omega
         self.dim = self.mu.shape[0]
@@ -63,7 +58,7 @@ class MHP:
         cnt = 0
 
         # simulate M-variate Hawkes Process with Exponential Kernels
-        while s < 1000 and cnt < 1200:
+        while s < 200 and cnt < 1200:
             if cnt == 0:
                 now_intensities = 1.0 * np.array(mu)  # initial state
             else:
@@ -73,7 +68,7 @@ class MHP:
             u = random.uniform(0, 1)
             w = -np.log(u) / lambda_mu
             s = s + w
-            if s > 1000:
+            if s > 200:
                 break
 
             D = random.uniform(0, 1)
@@ -192,6 +187,7 @@ class MHP:
                np.sum([self.alpha[d, int(j)] * self.omega * np.exp(-self.omega * (ct - t)) for t, j in seq])
 
     def plot_rates(self, horizon=-1):
+        self.data = np.array(self.data)
 
         if horizon < 0:
             horizon = np.amax(self.data[:, 0])
@@ -199,15 +195,17 @@ class MHP:
         # f, axarr = plt.subplots(self.dim * 2, 1, sharex='col',
         #                         gridspec_kw={'height_ratios': sum([[3, 1] for i in range(self.dim)], [])},
         #                         figsize=(8, 8))
-        xs = np.linspace(0, horizon, int((horizon / 100.) * 1000))
+        xs = np.linspace(0, horizon, int((horizon / 100.) * 200))
         lst = [0 for ct in xs]
+
+
         for i in range(self.dim):
             row = i * 2
 
             # plot rate
             r = [self.get_rate(ct, i) for ct in xs]
 
-            if i == 0:
+            if random.randint(0,100) % 2 == 0:
                 col = 'r'
             else:
                 col = 'm'
@@ -233,20 +231,13 @@ class MHP:
             plt.plot(subseq, np.zeros(len(subseq)) - 0.2 * i, col, alpha=0.2)
 
             plt.ylim([-1, np.amax(r) + (np.amax(r) / 2.)])
-            # plt.set_ylabel('$\lambda(t)_{%d}$' % i, fontsize=14)
-            r = []
-            #
-            # # plot events
-            # subseq = self.data[self.data[:, 1] == i][:, 0]
-            # axarr[row + 1].plot(subseq, np.zeros(len(subseq)) - 0.5, 'bo', alpha=0.2)
-            # axarr[row + 1].yaxis.set_visible(False)
-            #
-            # axarr[row + 1].set_xlim([0, horizon])
 
         plt.tight_layout()
-        plt.show()
+        # plt.show()
 
     def plot_events(self, horizon=-1, showDays=False, labeled=True):
+
+        self.data = np.array(self.data)
         if horizon < 0:
             horizon = np.amax(self.data[:, 0])
 
@@ -263,7 +254,7 @@ class MHP:
             for j in range(1, int(horizon)):
                 plt.plot([j, j], [-self.dim, 1], 'k:', alpha=0.15)
 
-        plt.show()
+        # plt.show()
 
         if labeled:
             ax.set_yticklabels('')
@@ -301,7 +292,7 @@ class MHP:
         # print(o)
         # assert(0)
         ax.plot((0, maxi), (0, maxi), linecolor)
-        plt.show()
+        # plt.show()
 
     def draw_QQ1Dim(self, Y, title="QQplot", type="expotional", num_points=200):
 
@@ -322,7 +313,7 @@ class MHP:
         plt.title(title, fontsize="x-large")
         plt.xlabel("quantiles of expected distribution")
         plt.ylabel("quantiles of real distribution")
-        plt.show()
+        # plt.show()
 
     def draw_QQMultiDim(self,
             title,
@@ -406,7 +397,7 @@ class MHP:
 #     while(spectral_radius(matrix) > 0.9):
 #         matrix = [[random.random()/10 for i in range(dim)] for j in range(dim)]
 #         spec.append(spectral_radius(matrix))
-#         if len(spec) > 1000:
+#         if len(spec) > 200:
 #             break
 #     return matrix
 # 
@@ -424,19 +415,20 @@ class MHP:
 
 
 # P = MHP(mu=m, alpha=a, omega=w)
-P = MHP()
-P.mu =[random.random() for i in range(10)]
-P.alpha = []
-for i in range(10):
-    nl = []
-    for j in range(10):
-        if i == j:
-            nl.append(0.8 + 0.2 * random.random())
-        else:
-            nl.append(0.1 * random.random())
-    P.alpha.append(nl)
-P.generate_seq(1000)
-# P.plot_events()
-# plt.show()
+params = json.load(open('2-dim-params.json', "rt"))
+P = MHP(params['A'],params['U'],params['W'])
+P.generate_seq(200)
+P.plot_rates()
+
+
+params = json.load(open('2dim-fitted_parameters.json', "rt"))
+P = MHP(params['A'],params['U'],params['W'])
+P.generate_seq(200)
+P.plot_rates()
+
+
+
+
 # P.plot_rates()
-P.draw_QQMultiDim("10dim")
+# P.draw_QQMultiDim("2dim")
+plt.show()
