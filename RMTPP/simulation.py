@@ -2,28 +2,12 @@
 from random import random
 from math import pow, e, log
 
-__ALL__ = ['simulation', 'draw_line', 'draw_qq_plot']
-
 
 def simulation(U, A, W, T):
-    """
-    simulate a M-dimensional hawkes process
-    :param U: M dimensional vector, background intensity vector
-    :param A: MxM dimensional matrix, the infectivity matrix
-    :param W: scalar, decay ratio
-    :param T: simulate in time range [0, T]
-    :return: a list of time sequence, the length of list if M
-    """
     M = len(U)
     sequences = [[] for _ in range(M)]
 
     def calc_lambda(s, m):
-        """
-        calculate the m-dimension intensity on time s
-        :param s: time
-        :param m: dimension
-        :return: the intensity
-        """
         return U[m] + sum([A[m][n] * pow(e, -W * (s - hs)) for n in range(M) for hs in sequences[n]])
 
     s = 0.0

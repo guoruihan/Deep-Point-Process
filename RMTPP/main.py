@@ -51,7 +51,7 @@ def evaluate(model, data_iter):
     target_time = []
     model.eval()
     for index, (input, target) in enumerate(data_iter):
-        time, event = model.inference(input)
+        time, event = model.generate(input)
         predicted_time.extend(time.cpu().numpy().tolist())
         target_time.extend(target[0].tolist())
         predicted_events.extend(event.cpu().numpy().tolist())

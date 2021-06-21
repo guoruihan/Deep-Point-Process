@@ -55,13 +55,58 @@ def fit_single(seqs, T, W=None, max_step=30, eps=1e-5, realParams=None):
         and A is the infectivity matrix. A[n][m] is the infectivity of n to m
     """
     T = max([max(seq) for seq in seqs])
-    print(T)
     M = len(seqs)
-    w_known = W is not None
-    U = np.random.uniform(0, 0.1, size=M)
-    A = np.random.uniform(0, 0.1, size=(M, M))
-    if not w_known:
-        W = np.random.uniform(0, 1, size=1)
+    wTag = W is not None
+    def init(W):
+        if W is None:
+            U = np.random.uniform(0, 0.1, size=M)
+            A = np.random.uniform(0, 0.1, size=(M, M))
+            W = np.random.uniform(0, 1, size=1)
+        else:
+            U = np.random.uniform(0, 0.1, size=M)
+            A = np.random.uniform(0, 0.1, size=(M, M))
+            W = W
+        return U,A,W
+
+    def updateP(e, p, lA, lU, lW, N):
+        for i in range(N):
+            for j in range(i):
+                p[i, j] = lA[e[i][1], e[j][1]] * np.exp(-W * (e[i][0] - e[j][0]))
+            p[i, i] = lU[e[i][1]]
+            p[i] = p[i] / np.sum(p[i])
+        return p
+
+    def updateW(e, p, lA, lU, lW, N):
+        up, down = 0.0, 0.0
+        for i in range(N):
+            for j in range(i):
+                pij = p[i, j]
+                up += pij
+                down += (e[i][0] - e[j][0]) * pij
+        return up / down
+
+    def updateU(e, p, U, lA, lU, lW, N):
+        for d in range(M):
+            U[d] = sum([p[i, i] for i in range(N) if e[i][1] == d]) / T
+        return U
+
+    def updateA(e, p, A, lA, lU, lW, N):
+        for du in range(M):
+            for dv in range(M):
+                up, down = 0.0, 0.0
+                for i in range(N):
+                    if e[i][1] != du: continue
+                    for j in range(i):
+                        if e[j][1] != dv: continue
+                        up += p[i, j]
+                for j in range(N):
+                    if e[j][1] != dv: continue
+                    down += (1.0 - np.exp(-lW * (T - e[j][0]))) / lW
+                A[du, dv] = up / down
+        return A
+
+
+    U,A,W = init(W)
 
     e = []
     for index, seq in enumerate(seqs):
@@ -74,53 +119,21 @@ def fit_single(seqs, T, W=None, max_step=30, eps=1e-5, realParams=None):
 
     for step in range(max_step):
 
-        old_U = np.copy(U)
-        old_A = np.copy(A)
-        old_W = np.copy(W)
+        lU = np.copy(U)
+        lA = np.copy(A)
+        lW = np.copy(W)
 
-        # update p
-        for i in range(N):
-            for j in range(i):
-                p[i, j] = old_A[e[i][1], e[j][1]] * np.exp(-W * (e[i][0] - e[j][0]))
-            p[i, i] = old_U[e[i][1]]
-            p[i] = p[i] / np.sum(p[i])
-
-        # update U
-        for d in range(M):
-            U[d] = sum([p[i, i] for i in range(N) if e[i][1] == d]) / T
-
-        # update A
-        for du in range(M):
-            for dv in range(M):
-                up, down = 0.0, 0.0
-                for i in range(N):
-                    if e[i][1] != du: continue
-                    for j in range(i):
-                        if e[j][1] != dv: continue
-                        up += p[i, j]
-                for j in range(N):
-                    if e[j][1] != dv: continue
-                    down += (1.0 - np.exp(-old_W * (T - e[j][0]))) / old_W
-                A[du, dv] = up / down
-
-        # update W
-        if not w_known:
-            up, down = 0.0, 0.0
-            for i in range(N):
-                for j in range(i):
-                    pij = p[i, j]
-                    up += pij
-                    down += (e[i][0] - e[j][0]) * pij
-            W = up / down
-        else:
-            W = old_W
+        p = updateP(e, p, lA, lU, lW, N)
+        U = updateU(e, p, U, lA, lU, lW, N)
+        A = updateA(e, p, A, lA, lU, lW, N)
+        if not wTag:
+            W = updateW(e, p, lA, lU, lW, N)
 
         eva = evaluation(realParams, {'U': U, 'A': A, 'W': W})
 
         relErr.append(eva)
 
-        print("\nStep  {} EVA {}".format(step, eva), end="")
-    print()
+        # print("\nStep  {} EVA {}".format(step, eva), end="")
 
     plt.plot(range(max_step), relErr)
     plt.show()
@@ -129,16 +142,7 @@ def fit_single(seqs, T, W=None, max_step=30, eps=1e-5, realParams=None):
 
 
 def fit(seqs_list, T, W=None, max_step=1000, eps=1e-5, realParams=None):
-    """
-    inference the multi-hawkes point process parameters
-    :param seqs_list: the list of the list of event sequences, M = len(seqs_list[0]) is the dimension of the process
-    :param T: the data was sampled from time interval [0, T]
-    :param W: when W is None, we inference W, otherwise we regard W is known
-    :param max_step: the maximum number of steps
-    :param eps: the epsilon, when the 2-norm of change is less or equal to epsilon, stop iteration
-    :return: parameters, {'U': U, 'A', A, 'W': W}, where U is the background intensity
-        and A is the infectivity matrix. A[n][m] is the infectivity of n to m
-    """
+
     U_list = []
     A_list = []
     w_list = []
